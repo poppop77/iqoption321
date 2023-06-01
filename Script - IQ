@@ -1,0 +1,77 @@
+instrument { name = "Linhas de Tendência", overlay = true }
+
+input_group {
+    "Período Max/Min",
+    doch_time = input {default = "10", type = input.string}
+}
+
+input_group {
+    "Período da Micro Tendência",
+    emaa_per = input {default = "10", type = input.string}
+}
+
+input_group {
+    "Período da Macro Tendência",
+    emab_per = input {default = "100", type = input.string}
+}
+
+input_group {
+    "Período da Linha de Tendência",
+    trendline_period = input {default = "5", type = input.string}
+}
+
+-- Cálculo da Média Móvel Exponencial
+EMAA = ema(close, emaa_per)
+EMAB = ema(close, emab_per)
+
+-- Função para traçar linhas de tendência
+function drawTrendLine(series, name, color)
+    local startIndex = 0
+    local endIndex = 0
+    local lineId = ""
+
+    for i = 1, #series do
+        if series[i] and not series[i - 1] then
+            startIndex = i
+        elseif not series[i] and series[i - 1] then
+            endIndex = i - 1
+            lineId = line.new(startIndex, series[startIndex], endIndex, series[endIndex], color, line.style_solid, 1)
+        end
+    end
+
+    if startIndex > 0 and endIndex == 0 then
+        endIndex = #series
+        lineId = line.new(startIndex, series[startIndex], endIndex, series[endIndex], color, line.style_solid, 1)
+    end
+
+    line.set_extend(lineId, true)
+    line.set_width(lineId, 2)
+    line.set_color(lineId, color)
+    line.set_style(lineId, line.style_dotted)
+    line.set_text(lineId, name)
+end
+
+sec = security(syminfo.tickerid, "5", close)
+if sec then
+    -- Verificar condições para traçar linhas de tendência
+    local microTrendUp = close > EMAA and EMAA > EMAA[1]
+    local microTrendDown = close < EMAA and EMAA < EMAA[1]
+    local macroTrendUp = close > EMAB and EMAB > EMAB[1]
+    local macroTrendDown = close < EMAB and EMAB < EMAB[1]
+
+    -- Remover linhas de tendência anteriores
+    line.delete()
+
+    -- Traçar linhas de tendência com base nas condições
+    if microTrendUp then
+        drawTrendLine(high, "Micro Up", color.new(0, 255, 0))
+    elseif microTrendDown then
+        drawTrendLine(low, "Micro Down", color.new(255, 0, 0))
+    end
+
+    if macroTrendUp then
+        drawTrendLine(high, "Macro Up", color.new(0, 0, 255))
+    elseif macroTrendDown then
+        drawTrendLine(low, "Macro Down", color.new(255, 255, 0))
+    end
+end
